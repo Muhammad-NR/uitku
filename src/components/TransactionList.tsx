@@ -25,7 +25,7 @@ export default function TransactionList() {
       ...t,
       categoryName: categoryMap.get(t.category_id) || "Kategori Dihapus"
     }));
-  });
+  }, [], []);
 
   // Fungsi Soft Delete
   const handleDelete = async (id: string) => {

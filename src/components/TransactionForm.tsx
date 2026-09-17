@@ -28,7 +28,8 @@ export default function TransactionForm() {
 
   const categories = useLiveQuery(
     () => db.categories.filter(c => c.type === type && !c.is_deleted).toArray(),
-    [type]
+    [type],
+    []
   );
 
   useEffect(() => {

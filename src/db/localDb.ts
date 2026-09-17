@@ -1,6 +1,3 @@
-import { createRemoteCategory, createRemoteTransaction, getRemoteCategories, getRemoteTransactions, softDeleteRemoteTransaction } from "@/db/supabaseDb";
-import { isSupabaseConfigured } from "@/lib/supabase";
-
 // Skema untuk Kategori
 export interface Category {
   id: string; // UUID
@@ -26,18 +23,9 @@ export interface Transaction {
 }
 import Dexie, { type Table } from "dexie";
 
-interface PendingOperation {
-  id?: number;
-  entity: "category" | "transaction";
-  action: "create" | "delete";
-  payload: Category | Transaction | { id: string };
-  created_at: number;
-}
-
 export class FinanceDB extends Dexie {
   transactions!: Table<Transaction, string>;
   categories!: Table<Category, string>;
-  pendingOperations!: Table<PendingOperation, number>;
 
   constructor() {
     super("PersonalFinanceDB");
@@ -55,94 +43,22 @@ export class FinanceDB extends Dexie {
 
 export const db = new FinanceDB();
 
-const isOnline = () => typeof navigator === "undefined" || navigator.onLine;
-
-async function queueOperation(operation: Omit<PendingOperation, "id">) {
-  await db.pendingOperations.add(operation);
-}
-
-async function flushPendingOperations() {
-  if (!isOnline()) return;
-  const operations = await db.pendingOperations.orderBy("id").toArray();
-
-  for (const operation of operations) {
-    try {
-      if (operation.entity === "category" && operation.action === "create") {
-        await createRemoteCategory(operation.payload as Category);
-      } else if (operation.entity === "transaction" && operation.action === "create") {
-        await createRemoteTransaction(operation.payload as Transaction);
-      } else if (operation.entity === "transaction" && operation.action === "delete") {
-        await softDeleteRemoteTransaction((operation.payload as { id: string }).id);
-      }
-      if (operation.id !== undefined) await db.pendingOperations.delete(operation.id);
-    } catch {
-      break;
-    }
-  }
-}
-
 export async function syncFinanceData() {
-  if (!isOnline() || !isSupabaseConfigured) return;
-  try {
-    await flushPendingOperations();
-    const [categories, transactions] = await Promise.all([getRemoteCategories(), getRemoteTransactions()]);
-    await db.transaction("rw", db.categories, db.transactions, async () => {
-      await db.categories.bulkPut(categories);
-      await db.transactions.bulkPut(transactions);
-    });
-  } catch {
-    // Offline or auth-disabled: local data remains available and queued.
-  }
+  return;
 }
 
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => { void syncFinanceData(); });
-  void syncFinanceData();
+  void db.open().then(async () => {
+    const defaults: Category[] = [
+      { id: "default-food", name: "Makanan", type: "EXPENSE", created_at: 0, updated_at: 0, is_deleted: false },
+      { id: "default-transport", name: "Transportasi", type: "EXPENSE", created_at: 0, updated_at: 0, is_deleted: false },
+      { id: "default-bills", name: "Tagihan", type: "EXPENSE", created_at: 0, updated_at: 0, is_deleted: false },
+      { id: "default-salary", name: "Gaji", type: "INCOME", created_at: 0, updated_at: 0, is_deleted: false },
+      { id: "default-other-income", name: "Pemasukan lain", type: "INCOME", created_at: 0, updated_at: 0, is_deleted: false },
+    ];
+    const existing = new Set((await db.categories.bulkGet(defaults.map((category) => category.id))).filter(Boolean).map((category) => category!.id));
+    const missing = defaults.filter((category) => !existing.has(category.id));
+    if (missing.length > 0) await db.categories.bulkAdd(missing);
+  });
 }
-
-const originalCategoryAdd = db.categories.add.bind(db.categories);
-db.categories.add = ((category) => {
-  const localWrite = originalCategoryAdd(category);
-  void localWrite.then(async () => {
-    try {
-      if (isOnline() && isSupabaseConfigured) await createRemoteCategory(category);
-      else throw new Error("offline");
-    } catch {
-      await queueOperation({ entity: "category", action: "create", payload: category, created_at: Date.now() });
-    }
-  });
-  return localWrite;
-}) as typeof db.categories.add;
-
-const originalTransactionAdd = db.transactions.add.bind(db.transactions);
-db.transactions.add = ((transaction) => {
-  const localWrite = originalTransactionAdd(transaction);
-  void localWrite.then(async () => {
-    try {
-      if (isOnline() && isSupabaseConfigured) await createRemoteTransaction(transaction);
-      else throw new Error("offline");
-    } catch {
-      await queueOperation({ entity: "transaction", action: "create", payload: transaction, created_at: Date.now() });
-    }
-  });
-  return localWrite;
-}) as typeof db.transactions.add;
-
-const originalTransactionUpdate = db.transactions.update.bind(db.transactions);
-db.transactions.update = ((id, changes) => {
-  const localWrite = originalTransactionUpdate(id, changes);
-  const transactionId = typeof id === "string" ? id : id.id;
-  const softDelete = typeof changes === "object" && changes !== null && "is_deleted" in changes && changes.is_deleted === true;
-  if (softDelete) {
-    void localWrite.then(async () => {
-      try {
-        if (isOnline() && isSupabaseConfigured) await softDeleteRemoteTransaction(transactionId);
-        else throw new Error("offline");
-      } catch {
-        await queueOperation({ entity: "transaction", action: "delete", payload: { id: transactionId }, created_at: Date.now() });
-      }
-    });
-  }
-  return localWrite;
-}) as typeof db.transactions.update;
 
