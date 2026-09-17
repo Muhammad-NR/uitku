@@ -1,4 +1,5 @@
 import { createRemoteCategory, createRemoteTransaction, getRemoteCategories, getRemoteTransactions, softDeleteRemoteTransaction } from "@/db/supabaseDb";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 // Skema untuk Kategori
 export interface Category {
@@ -81,7 +82,7 @@ async function flushPendingOperations() {
 }
 
 export async function syncFinanceData() {
-  if (!isOnline()) return;
+  if (!isOnline() || !isSupabaseConfigured) return;
   try {
     await flushPendingOperations();
     const [categories, transactions] = await Promise.all([getRemoteCategories(), getRemoteTransactions()]);
@@ -104,7 +105,7 @@ db.categories.add = ((category) => {
   const localWrite = originalCategoryAdd(category);
   void localWrite.then(async () => {
     try {
-      if (isOnline()) await createRemoteCategory(category);
+      if (isOnline() && isSupabaseConfigured) await createRemoteCategory(category);
       else throw new Error("offline");
     } catch {
       await queueOperation({ entity: "category", action: "create", payload: category, created_at: Date.now() });
@@ -118,7 +119,7 @@ db.transactions.add = ((transaction) => {
   const localWrite = originalTransactionAdd(transaction);
   void localWrite.then(async () => {
     try {
-      if (isOnline()) await createRemoteTransaction(transaction);
+      if (isOnline() && isSupabaseConfigured) await createRemoteTransaction(transaction);
       else throw new Error("offline");
     } catch {
       await queueOperation({ entity: "transaction", action: "create", payload: transaction, created_at: Date.now() });
@@ -135,7 +136,7 @@ db.transactions.update = ((id, changes) => {
   if (softDelete) {
     void localWrite.then(async () => {
       try {
-        if (isOnline()) await softDeleteRemoteTransaction(transactionId);
+        if (isOnline() && isSupabaseConfigured) await softDeleteRemoteTransaction(transactionId);
         else throw new Error("offline");
       } catch {
         await queueOperation({ entity: "transaction", action: "delete", payload: { id: transactionId }, created_at: Date.now() });

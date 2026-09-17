@@ -29,8 +29,8 @@ export default function TransactionList() {
 
   // Fungsi Soft Delete
   const handleDelete = async (id: string) => {
-    await db.transactions.update(id, { is_deleted: true, updated_at: Date.now() });
     setDeleteId(null);
+    await db.transactions.update(id, { is_deleted: true, updated_at: Date.now() });
   };
 
   if (!transactions) {
@@ -50,13 +50,13 @@ export default function TransactionList() {
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">
       {transactions.map((tx) => (
-        <div key={tx.id} style={{ "--ticket-accent": tx.type === "INCOME" ? "#16a34a" : "#dc2626" } as React.CSSProperties} className="finance-ticket flex justify-between items-center p-4 pl-5 bg-white border rounded-2xl">
+        <div key={tx.id} style={{ "--ticket-accent": tx.type === "INCOME" ? "#16a34a" : "#dc2626" } as React.CSSProperties} className="transaction-card finance-ticket flex justify-between items-center p-4 pl-5 bg-white border rounded-2xl">
           <div className="flex flex-col min-w-0 pr-3">
             {/* Nama Kategori */}
             <span className="font-bold text-black text-base truncate">{tx.categoryName}</span>
             
             {/* Tanggal yang diformat biar gampang dibaca */}
-            <span className="text-xs font-semibold text-gray-600">
+            <span className="transaction-date text-xs font-semibold text-gray-600">
               {new Date(tx.date).toLocaleDateString('id-ID', { 
                 day: 'numeric', month: 'long', year: 'numeric' 
               })}
@@ -64,7 +64,7 @@ export default function TransactionList() {
             
             {/* Tampilkan catatan kalau ada */}
             {tx.note && (
-              <span className="text-sm font-medium text-black mt-1 bg-gray-100 p-1 rounded">
+              <span className="transaction-note text-sm font-medium text-black mt-1 bg-gray-100 p-1 rounded">
                 &quot;{tx.note}&quot;
               </span>
             )}
