@@ -24,10 +24,23 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Supabase
+
+Supabase integration files are available in `src/lib/supabase.ts` and `src/db/supabaseDb.ts`.
+
+1. Copy `.env.example` to `.env.local`.
+2. Fill `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the Supabase project settings.
+3. Run `supabase/schema.sql` in the Supabase SQL Editor.
+4. Enable Anonymous Sign-Ins under Authentication > Providers.
+
+The SQL schema enables Row Level Security so each anonymous user can only access their own categories and transactions. Keep the service-role key out of the browser and out of `.env.local` values prefixed with `NEXT_PUBLIC_`.
+
+### Android push reminders
+
+The application includes Web Push endpoints under `src/app/api/push`. Add the VAPID public key, VAPID private key, Supabase service-role key, and a cron secret to `.env.local`. The private values are server-only. Open Settings in the installed PWA, choose a reminder time, and press `Aktifkan` to register the device. Call `POST /api/push/remind` with `Authorization: Bearer <CRON_SECRET>` every minute from a scheduler to deliver reminders while the app is closed.
 
 ## Deploy on Vercel
 
